@@ -305,6 +305,12 @@ impl Client {
                 (check_port(other_server, RENDEZVOUS_PORT), Vec::new(), true)
             }
         };
+        // Company build: fixed TCP port to the rendezvous server.
+        let rendezvous_server = crate::rendezvous_tcp_addr(&rendezvous_server);
+        let servers: Vec<String> = servers
+            .iter()
+            .map(|x| crate::rendezvous_tcp_addr(x))
+            .collect();
 
         if crate::get_ipv6_punch_enabled() {
             crate::test_ipv6().await;
@@ -315,7 +321,8 @@ impl Client {
         // no need to care about multiple rendezvous servers case, since it is acutally not used any more.
         // Shared state for UDP NAT test result
         if crate::get_udp_punch_enabled() && !interface.is_force_relay() {
-            if let Ok((socket, addr)) = new_direct_udp_for(&rendezvous_server).await {
+            let udp_server = crate::rendezvous_udp_addr(&rendezvous_server);
+            if let Ok((socket, addr)) = new_direct_udp_for(&udp_server).await {
                 let udp_port = Arc::new(Mutex::new(0));
                 let up_cloned = udp_port.clone();
                 let socket_cloned = socket.clone();
@@ -396,7 +403,7 @@ impl Client {
         if socket.is_err() && !servers.is_empty() {
             log::info!("try the other servers: {:?}", servers);
             for server in servers {
-                let server = check_port(server, RENDEZVOUS_PORT);
+                let server = crate::rendezvous_tcp_addr(&server);
                 socket = connect_tcp(&*server, CONNECT_TIMEOUT).await;
                 if socket.is_ok() {
                     rendezvous_server = server;
@@ -3964,7 +3971,7 @@ async fn hc_connection_(
     let mut last_recv_msg = Instant::now();
     let mut keep_alive = crate::DEFAULT_KEEP_ALIVE;
 
-    let host = check_port(&rendezvous_server, RENDEZVOUS_PORT);
+    let host = crate::rendezvous_tcp_addr(&rendezvous_server);
     let mut conn = connect_tcp(host.clone(), CONNECT_TIMEOUT).await?;
     let key = crate::get_key(true).await;
     crate::secure_tcp(&mut conn, &key).await?;

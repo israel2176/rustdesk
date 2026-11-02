@@ -3,7 +3,7 @@ use hbb_common::password_security;
 use hbb_common::{
     allow_err,
     bytes::Bytes,
-    config::{self, keys::*, Config, LocalConfig, PeerConfig, CONNECT_TIMEOUT, RENDEZVOUS_PORT},
+    config::{self, keys::*, Config, LocalConfig, PeerConfig, CONNECT_TIMEOUT},
     directories_next,
     futures::future::join_all,
     log,
@@ -1436,7 +1436,7 @@ async fn check_id(
     uuid: Bytes,
 ) -> &'static str {
     if let Ok(mut socket) = hbb_common::socket_client::connect_tcp(
-        crate::check_port(rendezvous_server, RENDEZVOUS_PORT),
+        crate::rendezvous_tcp_addr(&rendezvous_server),
         CONNECT_TIMEOUT,
     )
     .await

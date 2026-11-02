@@ -13,7 +13,8 @@ use hbb_common::{
     allow_err,
     anyhow::{self, bail},
     config::{
-        self, keys::*, option2bool, use_ws, Config, CONNECT_TIMEOUT, REG_INTERVAL, RENDEZVOUS_PORT,
+        self, keys::*, option2bool, use_ws, Config, CONNECT_TIMEOUT, REG_INTERVAL, RELAY_PORT,
+        RENDEZVOUS_PORT,
     },
     futures::future::join_all,
     log,
@@ -26,10 +27,7 @@ use hbb_common::{
     AddrMangle, IntoTargetAddr, ResultType, Stream, TargetAddr,
 };
 
-use crate::{
-    check_port,
-    server::{check_zombie, new as new_server, ServerPtr},
-};
+use crate::server::{check_zombie, new as new_server, ServerPtr};
 
 type Message = RendezvousMessage;
 
@@ -43,14 +41,11 @@ static MANUAL_RESTARTED: AtomicBool = AtomicBool::new(false);
 static SENT_REGISTER_PK: AtomicBool = AtomicBool::new(false);
 
 /// Company build: transport order for registering with the rendezvous server.
-/// `true`  = try UDP (each port in `UDP_PORTS`) first, then fall back to TCP.
+/// `true`  = try UDP first (on `COMPANY_UDP_PORT`), then fall back to TCP (on `COMPANY_TCP_PORT`).
 /// `false` = try TCP first, then fall back to UDP.
+/// The ports themselves are set in `src/common.rs`.
 const PREFER_UDP: bool = true;
-/// UDP ports tried in order. The server must answer on every port listed here
-/// (hbbs listens on 21116; extra ports need a redirect to 21116 on the server).
-/// A port written in the server address overrides this list.
-const UDP_PORTS: &[i32] = &[RENDEZVOUS_PORT];
-/// Register attempts without any answer before a UDP port is considered blocked.
+/// Register attempts without any answer before UDP is considered blocked.
 const UDP_GIVE_UP_FAILS: i64 = 3;
 /// After a fallback, keep using the working transport for this long before retrying the preferred one.
 const FALLBACK_STICKY: Duration = Duration::from_secs(10 * 60);
@@ -181,7 +176,7 @@ impl RendezvousMediator {
         udp_host: Option<String>,
     ) -> ResultType<()> {
         let give_up_if_unreachable = udp_host.is_some();
-        let host = check_port(&host, RENDEZVOUS_PORT);
+        let host = crate::rendezvous_tcp_addr(&host);
         let udp_host = udp_host.unwrap_or_else(|| host.clone());
         log::info!("start udp: {udp_host}");
         let (mut socket, mut addr) = match new_udp_for(&udp_host, CONNECT_TIMEOUT).await {
@@ -389,7 +384,7 @@ impl RendezvousMediator {
         host: String,
         connected: Arc<AtomicBool>,
     ) -> ResultType<()> {
-        let host = check_port(&host, RENDEZVOUS_PORT);
+        let host = crate::rendezvous_tcp_addr(&host);
         log::info!("start tcp: {}", hbb_common::websocket::check_ws(&host));
         let mut conn = connect_tcp(host.clone(), CONNECT_TIMEOUT).await?;
         let key = crate::get_key(true).await;
@@ -477,25 +472,9 @@ impl RendezvousMediator {
             .insert(host.to_owned(), Instant::now());
     }
 
-    async fn try_udp_ports(server: &ServerPtr, host: &str) -> ResultType<()> {
-        let mut tried = Vec::new();
-        for port in UDP_PORTS {
-            let udp_host = check_port(host, *port);
-            if tried.contains(&udp_host) {
-                continue;
-            }
-            tried.push(udp_host.clone());
-            match Self::start_udp(server.clone(), host.to_owned(), Some(udp_host.clone())).await {
-                Err(e) if e.to_string() == UDP_UNREACHABLE => {
-                    log::warn!("UDP {udp_host} unreachable, trying next");
-                    if SHOULD_EXIT.load(Ordering::SeqCst) {
-                        return Ok(());
-                    }
-                }
-                res => return res,
-            }
-        }
-        bail!(UDP_UNREACHABLE)
+    async fn try_udp(server: &ServerPtr, host: &str) -> ResultType<()> {
+        let udp_host = crate::rendezvous_udp_addr(host);
+        Self::start_udp(server.clone(), host.to_owned(), Some(udp_host)).await
     }
 
     /// Preferred transport first; if it never gets an answer, use the other one.
@@ -503,9 +482,9 @@ impl RendezvousMediator {
         let use_preferred = !Self::fallback_active(&host);
         if PREFER_UDP {
             if use_preferred {
-                match Self::try_udp_ports(&server, &host).await {
+                match Self::try_udp(&server, &host).await {
                     Err(e) if e.to_string() == UDP_UNREACHABLE => {
-                        log::warn!("All UDP ports of {host} unreachable, falling back to TCP");
+                        log::warn!("UDP to {host} unreachable, falling back to TCP");
                         Self::mark_fallback(&host);
                     }
                     res => return res,
@@ -523,7 +502,7 @@ impl RendezvousMediator {
                 log::warn!("TCP to {host} failed ({res:?}), falling back to UDP");
                 Self::mark_fallback(&host);
             }
-            Self::try_udp_ports(&server, &host).await
+            Self::try_udp(&server, &host).await
         }
     }
 
@@ -861,7 +840,8 @@ impl RendezvousMediator {
             relay_server = provided_by_rendezvous_server;
         }
         if relay_server.is_empty() {
-            relay_server = crate::increase_port(&self.host, 1);
+            // `self.host` uses the company TCP port; the relay (hbbr) keeps its standard port.
+            relay_server = crate::set_port(&self.host, RELAY_PORT);
         }
         relay_server
     }

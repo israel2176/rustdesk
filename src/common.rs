@@ -746,12 +746,9 @@ async fn test_rendezvous_server_() {
     for host in servers {
         futs.push(tokio::spawn(async move {
             let tm = std::time::Instant::now();
-            if socket_client::connect_tcp(
-                crate::check_port(&host, RENDEZVOUS_PORT),
-                CONNECT_TIMEOUT,
-            )
-            .await
-            .is_ok()
+            if socket_client::connect_tcp(rendezvous_tcp_addr(&host), CONNECT_TIMEOUT)
+                .await
+                .is_ok()
             {
                 let elapsed = tm.elapsed().as_micros();
                 Config::update_latency(&host, elapsed as _);
@@ -909,6 +906,40 @@ pub fn check_port<T: std::string::ToString>(host: T, port: i32) -> String {
 #[inline]
 pub fn increase_port<T: std::string::ToString>(host: T, offset: i32) -> String {
     hbb_common::socket_client::increase_port(host, offset)
+}
+
+/// Company build: fixed port for UDP to the rendezvous server (hbbs).
+pub const COMPANY_UDP_PORT: i32 = RENDEZVOUS_PORT;
+/// Company build: fixed port for TCP to the rendezvous server (hbbs).
+pub const COMPANY_TCP_PORT: i32 = RENDEZVOUS_PORT;
+
+/// Returns `host` with its port replaced by (or set to) `port`. Handles IPv6 (`[::1]:21116`).
+pub fn set_port(host: &str, port: i32) -> String {
+    let host = host.trim();
+    let bare = if let Some(rest) = host.strip_prefix('[') {
+        rest.split(']').next().unwrap_or(rest)
+    } else if hbb_common::is_ipv6_str(host) {
+        // bare IPv6 address without port (same rule as `check_port`)
+        host
+    } else {
+        match host.rsplit_once(':') {
+            Some((h, p)) if p.parse::<u16>().is_ok() => h,
+            _ => host,
+        }
+    };
+    check_port(bare, port)
+}
+
+/// Address for TCP to the rendezvous server, always on `COMPANY_TCP_PORT`.
+#[inline]
+pub fn rendezvous_tcp_addr(host: &str) -> String {
+    set_port(host, COMPANY_TCP_PORT)
+}
+
+/// Address for UDP to the rendezvous server, always on `COMPANY_UDP_PORT`.
+#[inline]
+pub fn rendezvous_udp_addr(host: &str) -> String {
+    set_port(host, COMPANY_UDP_PORT)
 }
 
 pub const POSTFIX_SERVICE: &'static str = "_service";
@@ -1182,7 +1213,7 @@ fn tcp_proxy_log_target(url: &str) -> String {
 
 #[inline]
 fn get_tcp_proxy_addr() -> String {
-    check_port(Config::get_rendezvous_server(), RENDEZVOUS_PORT)
+    rendezvous_tcp_addr(&Config::get_rendezvous_server())
 }
 
 /// Send an HTTP request via the rendezvous server's TCP proxy using protobuf.
@@ -2830,6 +2861,15 @@ mod tests {
             "not a url",
             "https://admin.example.com"
         ));
+    }
+
+    #[test]
+    fn test_set_port() {
+        assert_eq!(set_port("example.com", 443), "example.com:443");
+        assert_eq!(set_port("example.com:21116", 443), "example.com:443");
+        assert_eq!(set_port("1.2.3.4:21116", 53), "1.2.3.4:53");
+        assert_eq!(set_port("[1:2::3]:21116", 443), "[1:2::3]:443");
+        assert_eq!(set_port("1:2::3", 443), "[1:2::3]:443");
     }
 
     #[test]
