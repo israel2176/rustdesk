@@ -42,6 +42,25 @@ static SHOULD_EXIT: AtomicBool = AtomicBool::new(false);
 static MANUAL_RESTARTED: AtomicBool = AtomicBool::new(false);
 static SENT_REGISTER_PK: AtomicBool = AtomicBool::new(false);
 
+/// Company build: transport order for registering with the rendezvous server.
+/// `true`  = try UDP (each port in `UDP_PORTS`) first, then fall back to TCP.
+/// `false` = try TCP first, then fall back to UDP.
+const PREFER_UDP: bool = true;
+/// UDP ports tried in order. The server must answer on every port listed here
+/// (hbbs listens on 21116; extra ports need a redirect to 21116 on the server).
+/// A port written in the server address overrides this list.
+const UDP_PORTS: &[i32] = &[RENDEZVOUS_PORT];
+/// Register attempts without any answer before a UDP port is considered blocked.
+const UDP_GIVE_UP_FAILS: i64 = 3;
+/// After a fallback, keep using the working transport for this long before retrying the preferred one.
+const FALLBACK_STICKY: Duration = Duration::from_secs(10 * 60);
+const UDP_UNREACHABLE: &str = "UDP rendezvous unreachable";
+
+lazy_static::lazy_static! {
+    /// Time of the last fallback (per host), so we don't retry the blocked transport on every reconnect.
+    static ref LAST_FALLBACK: std::sync::Mutex<std::collections::HashMap<String, Instant>> = Default::default();
+}
+
 #[derive(Clone)]
 pub struct RendezvousMediator {
     addr: TargetAddr<'static>,
@@ -154,10 +173,25 @@ impl RendezvousMediator {
             .unwrap_or(host.to_owned())
     }
 
-    pub async fn start_udp(server: ServerPtr, host: String) -> ResultType<()> {
+    /// `udp_host`: address used for UDP only; TCP (punch hole / relay) keeps the standard port.
+    /// When `udp_host` is set, returns `UDP_UNREACHABLE` if the server never answers.
+    pub async fn start_udp(
+        server: ServerPtr,
+        host: String,
+        udp_host: Option<String>,
+    ) -> ResultType<()> {
+        let give_up_if_unreachable = udp_host.is_some();
         let host = check_port(&host, RENDEZVOUS_PORT);
-        log::info!("start udp: {host}");
-        let (mut socket, mut addr) = new_udp_for(&host, CONNECT_TIMEOUT).await?;
+        let udp_host = udp_host.unwrap_or_else(|| host.clone());
+        log::info!("start udp: {udp_host}");
+        let (mut socket, mut addr) = match new_udp_for(&udp_host, CONNECT_TIMEOUT).await {
+            Ok(x) => x,
+            Err(e) if give_up_if_unreachable => {
+                log::warn!("Failed to create UDP socket for {udp_host}: {e}");
+                bail!(UDP_UNREACHABLE)
+            }
+            Err(e) => return Err(e),
+        };
         let mut rz = Self {
             addr: addr.clone(),
             host: host.clone(),
@@ -239,13 +273,19 @@ impl RendezvousMediator {
                     if timeout || (last_register_sent.is_none() && expired) {
                         if timeout {
                             fails += 1;
+                            if give_up_if_unreachable
+                                && last_register_resp.is_none()
+                                && fails >= UDP_GIVE_UP_FAILS
+                            {
+                                bail!(UDP_UNREACHABLE);
+                            }
                             if fails >= MAX_FAILS2 {
                                 Config::update_latency(&host, -1);
                                 old_latency = 0;
                                 if last_dns_check.elapsed().as_millis() as i64 > DNS_INTERVAL {
                                     // in some case of network reconnect (dial IP network),
                                     // old UDP socket not work any more after network recover
-                                    if let Some((s, new_addr)) = socket_client::rebind_udp_for(&rz.host).await? {
+                                    if let Some((s, new_addr)) = socket_client::rebind_udp_for(&udp_host).await? {
                                         socket = s;
                                         rz.addr = new_addr.clone();
                                         addr = new_addr;
@@ -340,6 +380,15 @@ impl RendezvousMediator {
     }
 
     pub async fn start_tcp(server: ServerPtr, host: String) -> ResultType<()> {
+        Self::start_tcp_inner(server, host, Arc::new(AtomicBool::new(false))).await
+    }
+
+    /// `connected` is set once the server answered at least once.
+    async fn start_tcp_inner(
+        server: ServerPtr,
+        host: String,
+        connected: Arc<AtomicBool>,
+    ) -> ResultType<()> {
         let host = check_port(&host, RENDEZVOUS_PORT);
         log::info!("start tcp: {}", hbb_common::websocket::check_ws(&host));
         let mut conn = connect_tcp(host.clone(), CONNECT_TIMEOUT).await?;
@@ -375,6 +424,7 @@ impl RendezvousMediator {
                         continue; // heartbeat
                     }
                     let msg = Message::parse_from_bytes(&bytes)?;
+                    connected.store(true, Ordering::SeqCst);
                     rz.handle_resp(msg.union, Sink::Stream(&mut conn), &server, &mut update_latency).await?
                 }
                 _ = timer.tick() => {
@@ -407,7 +457,73 @@ impl RendezvousMediator {
         {
             Self::start_tcp(server, host).await
         } else {
-            Self::start_udp(server, host).await
+            Self::start_with_fallback(server, host).await
+        }
+    }
+
+    fn fallback_active(host: &str) -> bool {
+        LAST_FALLBACK
+            .lock()
+            .unwrap()
+            .get(host)
+            .map(|t| t.elapsed() < FALLBACK_STICKY)
+            .unwrap_or(false)
+    }
+
+    fn mark_fallback(host: &str) {
+        LAST_FALLBACK
+            .lock()
+            .unwrap()
+            .insert(host.to_owned(), Instant::now());
+    }
+
+    async fn try_udp_ports(server: &ServerPtr, host: &str) -> ResultType<()> {
+        let mut tried = Vec::new();
+        for port in UDP_PORTS {
+            let udp_host = check_port(host, *port);
+            if tried.contains(&udp_host) {
+                continue;
+            }
+            tried.push(udp_host.clone());
+            match Self::start_udp(server.clone(), host.to_owned(), Some(udp_host.clone())).await {
+                Err(e) if e.to_string() == UDP_UNREACHABLE => {
+                    log::warn!("UDP {udp_host} unreachable, trying next");
+                    if SHOULD_EXIT.load(Ordering::SeqCst) {
+                        return Ok(());
+                    }
+                }
+                res => return res,
+            }
+        }
+        bail!(UDP_UNREACHABLE)
+    }
+
+    /// Preferred transport first; if it never gets an answer, use the other one.
+    async fn start_with_fallback(server: ServerPtr, host: String) -> ResultType<()> {
+        let use_preferred = !Self::fallback_active(&host);
+        if PREFER_UDP {
+            if use_preferred {
+                match Self::try_udp_ports(&server, &host).await {
+                    Err(e) if e.to_string() == UDP_UNREACHABLE => {
+                        log::warn!("All UDP ports of {host} unreachable, falling back to TCP");
+                        Self::mark_fallback(&host);
+                    }
+                    res => return res,
+                }
+            }
+            Self::start_tcp(server, host).await
+        } else {
+            if use_preferred {
+                let connected = Arc::new(AtomicBool::new(false));
+                let res =
+                    Self::start_tcp_inner(server.clone(), host.clone(), connected.clone()).await;
+                if connected.load(Ordering::SeqCst) || SHOULD_EXIT.load(Ordering::SeqCst) {
+                    return res;
+                }
+                log::warn!("TCP to {host} failed ({res:?}), falling back to UDP");
+                Self::mark_fallback(&host);
+            }
+            Self::try_udp_ports(&server, &host).await
         }
     }
 
