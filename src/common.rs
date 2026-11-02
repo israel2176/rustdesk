@@ -2116,6 +2116,7 @@ pub fn rustdesk_interval(i: Interval) -> ThrottledInterval {
 /// Values in `OVERWRITE_*` cannot be changed from the UI.
 fn apply_company_settings() {
     use hbb_common::config::keys;
+    *config::APP_NAME.write().unwrap() = "agc".to_owned();
     // Hebrew UI.
     config::OVERWRITE_LOCAL_SETTINGS
         .write()
