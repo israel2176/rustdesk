@@ -136,6 +136,25 @@ pub fn core_main() -> Option<Vec<String>> {
             return None;
         }
     }
+    // Company build: the portable app must run as administrator.
+    // Once elevated, the existing portable-service flow below runs the server as SYSTEM,
+    // so the remote side gets administrator-level control (UAC prompts, elevated windows).
+    // The installed version already runs its server as a SYSTEM service.
+    #[cfg(windows)]
+    if args.is_empty()
+        && !_is_elevate
+        && !_is_run_as_system
+        && !crate::platform::is_installed()
+        && !crate::platform::is_elevated(None).unwrap_or(false)
+    {
+        match crate::platform::elevate("") {
+            Ok(true) => {}
+            _ => crate::platform::message_box(
+                "התוכנה דורשת הרשאות מנהל.\nיש לאשר את בקשת ההרשאות או להפעיל את התוכנה כמנהל!",
+            ),
+        }
+        return None;
+    }
     #[cfg(windows)]
     {
         _is_quick_support |= !crate::platform::is_installed()

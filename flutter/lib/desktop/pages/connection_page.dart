@@ -10,6 +10,7 @@ import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/widgets/popup_menu.dart';
 import 'package:flutter_hbb/models/state_model.dart';
 import 'package:get/get.dart';
+import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:flutter_hbb/models/peer_model.dart';
@@ -36,6 +37,14 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
   final _svcStopped = Get.find<RxBool>(tag: 'stop-service');
   final _svcIsUsingPublicServer = true.obs;
   Timer? _updateTimer;
+
+  /// URL used to test internet access when the server is not reachable.
+  /// Replace with your own server address (any URL returning HTTP 2xx).
+  static const String kConnectivityCheckUrl =
+      'https://www.google.com/generate_204';
+  final _netError = ''.obs;
+  bool _netChecking = false;
+  DateTime _lastNetCheck = DateTime.fromMillisecondsSinceEpoch(0);
 
   double get em => 14.0;
   double? get height => bind.isIncomingOnly() ? null : em * 3;
@@ -125,9 +134,11 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
                         : Color.fromARGB(255, 224, 79, 95)),
               ),
             ).marginSymmetric(horizontal: em),
-            Container(
-              width: isIncomingOnly ? 226 : null,
-              child: _buildConnStatusMsg(),
+            Flexible(
+              child: Container(
+                width: isIncomingOnly ? 226 : null,
+                child: _buildConnStatusMsg(),
+              ),
             ),
             // stop
             if (!isIncomingOnly) startServiceWidget(),
@@ -155,6 +166,26 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
 
   _buildConnStatusMsg() {
     widget.onSvcStatusChanged?.call();
+    if (!_svcStopped.value && _netError.value.isNotEmpty) {
+      return Tooltip(
+        message: _netError.value,
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.red.withOpacity(0.12),
+            border: Border.all(color: Colors.red),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            _netError.value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+                fontSize: em, color: Colors.red, fontWeight: FontWeight.bold),
+          ),
+        ),
+      );
+    }
     return Text(
       _svcStopped.value
           ? translate("Service is not running")
@@ -180,10 +211,75 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
     } else {
       stateGlobal.svcStatus.value = SvcStatus.notReady;
     }
+    if (stateGlobal.svcStatus.value == SvcStatus.ready) {
+      _netError.value = '';
+    } else if (stateGlobal.svcStatus.value == SvcStatus.notReady &&
+        !_svcStopped.value) {
+      _checkNetwork();
+    }
     _svcIsUsingPublicServer.value = await bind.mainIsUsingPublicServer();
     try {
       stateGlobal.videoConnCount.value = status['video_conn_count'] as int;
     } catch (_) {}
+  }
+
+  /// Finds out why the server is not reachable and sets a clear error message.
+  Future<void> _checkNetwork() async {
+    if (_netChecking ||
+        DateTime.now().difference(_lastNetCheck) < Duration(seconds: 5)) {
+      return;
+    }
+    _netChecking = true;
+    _lastNetCheck = DateTime.now();
+    try {
+      final resp = await http
+          .get(Uri.parse(kConnectivityCheckUrl))
+          .timeout(Duration(seconds: 5));
+      if (stateGlobal.svcStatus.value == SvcStatus.ready) {
+        _netError.value = '';
+      } else if (resp.statusCode >= 200 && resp.statusCode < 300) {
+        _netError.value = translate('server_unreachable_error');
+      } else {
+        _netError.value =
+            '${translate('network_http_error')} ${resp.statusCode} - ${_httpStatusText(resp.statusCode)}';
+      }
+    } catch (_) {
+      if (stateGlobal.svcStatus.value != SvcStatus.ready) {
+        _netError.value = translate('no_internet_error');
+      }
+    } finally {
+      _netChecking = false;
+    }
+  }
+
+  String _httpStatusText(int code) {
+    switch (code) {
+      case 400:
+        return translate('http_400');
+      case 401:
+      case 403:
+        return translate('http_403');
+      case 404:
+        return translate('http_404');
+      case 407:
+        return translate('http_407');
+      case 408:
+      case 504:
+        return translate('http_timeout');
+      case 418:
+        return translate('http_418');
+      case 429:
+        return translate('http_429');
+      case 500:
+        return translate('http_500');
+      case 502:
+      case 503:
+        return translate('http_503');
+      default:
+        return code >= 500
+            ? translate('http_500')
+            : translate('http_other');
+    }
   }
 }
 

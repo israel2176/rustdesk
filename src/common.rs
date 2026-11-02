@@ -2081,7 +2081,25 @@ pub fn rustdesk_interval(i: Interval) -> ThrottledInterval {
     ThrottledInterval::new(i)
 }
 
+/// Company build settings, enforced on every start.
+/// Values in `OVERWRITE_*` cannot be changed from the UI.
+fn apply_company_settings() {
+    use hbb_common::config::keys;
+    // Hebrew UI.
+    config::OVERWRITE_LOCAL_SETTINGS
+        .write()
+        .unwrap()
+        .insert(keys::OPTION_LANGUAGE.to_owned(), "he".to_owned());
+    // AnyDesk-like access: numeric ID only, no password.
+    // The remote user must click "Accept" for every incoming connection.
+    config::OVERWRITE_SETTINGS
+        .write()
+        .unwrap()
+        .insert(keys::OPTION_APPROVE_MODE.to_owned(), "click".to_owned());
+}
+
 pub fn load_custom_client() {
+    apply_company_settings();
     #[cfg(debug_assertions)]
     if let Ok(data) = std::fs::read_to_string("./custom.txt") {
         read_custom_client(data.trim());

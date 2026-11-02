@@ -274,5 +274,18 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("keep-awake-during-incoming-sessions-label", "Keep screen awake during incoming sessions"),
         ("password-hidden-tip", "Permanent password is set (hidden)."),
         ("preset-password-in-use-tip", "Preset password is currently in use."),
+        ("no_internet_error", "No internet connection. Check your network and try again."),
+        ("server_unreachable_error", "Internet is available, but the connection server is unreachable."),
+        ("network_http_error", "Network error, code"),
+        ("http_400", "Bad request"),
+        ("http_403", "Access denied"),
+        ("http_404", "Address not found"),
+        ("http_407", "Proxy authentication required"),
+        ("http_timeout", "Request timed out"),
+        ("http_418", "Blocked by the internet filter"),
+        ("http_429", "Too many requests, try again later"),
+        ("http_500", "Server error"),
+        ("http_503", "Server is temporarily unavailable"),
+        ("http_other", "Unexpected server response"),
     ].iter().cloned().collect();
 }

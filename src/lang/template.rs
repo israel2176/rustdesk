@@ -744,5 +744,18 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("password-hidden-tip", ""),
         ("preset-password-in-use-tip", ""),
         ("Enable privacy mode", ""),
+        ("no_internet_error", ""),
+        ("server_unreachable_error", ""),
+        ("network_http_error", ""),
+        ("http_400", ""),
+        ("http_403", ""),
+        ("http_404", ""),
+        ("http_407", ""),
+        ("http_timeout", ""),
+        ("http_418", ""),
+        ("http_429", ""),
+        ("http_500", ""),
+        ("http_503", ""),
+        ("http_other", ""),
     ].iter().cloned().collect();
 }
