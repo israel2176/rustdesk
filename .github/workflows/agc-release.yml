@@ -1,0 +1,21 @@
+name: Build Remote-AGC
+
+# Builds the company version and publishes the files as a GitHub Release
+# (tag "agc-latest"). Run it from the Actions tab, or push a tag starting with "agc-".
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "agc-*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    uses: ./.github/workflows/flutter-build.yml
+    secrets: inherit
+    with:
+      upload-artifact: true
+      upload-tag: "agc-latest"
