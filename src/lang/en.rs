@@ -287,5 +287,17 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("http_500", "Server error"),
         ("http_503", "Server is temporarily unavailable"),
         ("http_other", "Unexpected server response"),
+        ("agc_your_id", "Your ID"),
+        ("agc_copy_id", "Copy ID"),
+        ("agc_hint", "Give your ID only to someone you know and trust"),
+        ("agc_connect_tab", "Connect"),
+        ("agc_connect_title", "Connect to another computer"),
+        ("agc_peer_id_label", "Customer's computer ID"),
+        ("agc_connect_btn", "Connect"),
+        ("agc_connect_note", "The customer will be asked to approve the connection on their screen."),
+        ("agc_request_title", "Request to connect to your computer"),
+        ("agc_request_warning", "Approve only if you know who is asking to connect and you are talking with them now."),
+        ("agc_accept", "Approve"),
+        ("agc_reject", "Reject"),
     ].iter().cloned().collect();
 }

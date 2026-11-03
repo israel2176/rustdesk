@@ -2129,6 +2129,11 @@ fn apply_company_settings() {
         .write()
         .unwrap()
         .insert(keys::OPTION_APPROVE_MODE.to_owned(), "click".to_owned());
+    // Minimal UI: no settings page.
+    config::HARD_SETTINGS
+        .write()
+        .unwrap()
+        .insert("disable-settings".to_owned(), "Y".to_owned());
 }
 
 pub fn load_custom_client() {

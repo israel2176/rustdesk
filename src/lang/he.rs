@@ -757,5 +757,17 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("http_500", "שגיאה בשרת"),
         ("http_503", "השרת אינו זמין כרגע"),
         ("http_other", "תשובה לא צפויה מהשרת"),
+        ("agc_your_id", "המזהה שלך"),
+        ("agc_copy_id", "העתק מזהה"),
+        ("agc_hint", "מסרו את המזהה רק למי שאתם מכירים וסומכים עליו"),
+        ("agc_connect_tab", "התחברות"),
+        ("agc_connect_title", "התחברות למחשב אחר"),
+        ("agc_peer_id_label", "מזהה המחשב של הלקוח"),
+        ("agc_connect_btn", "התחבר"),
+        ("agc_connect_note", "הלקוח יתבקש לאשר את החיבור על המסך שלו."),
+        ("agc_request_title", "בקשה להתחבר למחשב שלך"),
+        ("agc_request_warning", "אשרו רק אם אתם מכירים את מי שמבקש להתחבר ומדברים איתו כעת."),
+        ("agc_accept", "אשר"),
+        ("agc_reject", "דחה"),
     ].iter().cloned().collect();
 }
