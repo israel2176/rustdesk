@@ -744,5 +744,18 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("password-hidden-tip", ""),
         ("preset-password-in-use-tip", ""),
         ("Enable privacy mode", ""),
+        ("no_internet_error", "אין חיבור לאינטרנט. בדוק את חיבור הרשת ונסה שוב."),
+        ("server_unreachable_error", "יש אינטרנט, אך אין חיבור לשרת החיבורים."),
+        ("network_http_error", "שגיאת רשת, קוד"),
+        ("http_400", "בקשה שגויה"),
+        ("http_403", "הגישה נחסמה"),
+        ("http_404", "הכתובת לא נמצאה"),
+        ("http_407", "נדרש אימות מול שרת Proxy"),
+        ("http_timeout", "תם הזמן להמתנה לתשובה"),
+        ("http_418", "הגישה נחסמה על ידי סינון האינטרנט"),
+        ("http_429", "יותר מדי בקשות, נסה שוב מאוחר יותר"),
+        ("http_500", "שגיאה בשרת"),
+        ("http_503", "השרת אינו זמין כרגע"),
+        ("http_other", "תשובה לא צפויה מהשרת"),
     ].iter().cloned().collect();
 }
