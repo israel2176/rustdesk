@@ -757,5 +757,17 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("http_500", ""),
         ("http_503", ""),
         ("http_other", ""),
+        ("agc_your_id", ""),
+        ("agc_copy_id", ""),
+        ("agc_hint", ""),
+        ("agc_connect_tab", ""),
+        ("agc_connect_title", ""),
+        ("agc_peer_id_label", ""),
+        ("agc_connect_btn", ""),
+        ("agc_connect_note", ""),
+        ("agc_request_title", ""),
+        ("agc_request_warning", ""),
+        ("agc_accept", ""),
+        ("agc_reject", ""),
     ].iter().cloned().collect();
 }

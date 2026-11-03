@@ -356,7 +356,9 @@ Widget buildConnectionCard(Client client) {
         client.type_() == ClientType.file ||
                 client.type_() == ClientType.portForward ||
                 client.type_() == ClientType.terminal ||
-                client.disconnected
+                client.disconnected ||
+                // Company build: keep the request screen simple.
+                !client.authorized
             ? Offstage()
             : _PrivilegeBoard(client: client),
         Expanded(
@@ -522,7 +524,7 @@ class _CmHeaderState extends State<_CmHeader>
                           ? client.disconnected
                               ? translate("Disconnected")
                               : translate("Connected")
-                          : "${translate("Request access to your device")}...",
+                          : translate("agc_request_title"),
                       style: TextStyle(color: Colors.white),
                     ).marginOnly(right: 8.0),
                     if (client.authorized)
@@ -1063,6 +1065,11 @@ class _CmControlPanel extends StatelessWidget {
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
+        Text(
+          translate('agc_request_warning'),
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+        ).marginOnly(bottom: 12),
         Offstage(
           offstage: !showElevation || !showAccept,
           child: buildButton(context, color: Colors.green[700], onClick: () {
@@ -1088,12 +1095,12 @@ class _CmControlPanel extends StatelessWidget {
                   children: [
                     buildButton(
                       context,
-                      color: MyTheme.accent,
+                      color: Colors.green[700],
                       onClick: () {
                         handleAccept(context);
                         windowManager.minimize();
                       },
-                      text: 'Accept',
+                      text: 'agc_accept',
                       textColor: Colors.white,
                     ),
                   ],
@@ -1103,10 +1110,10 @@ class _CmControlPanel extends StatelessWidget {
               child: buildButton(
                 context,
                 color: Colors.transparent,
-                border: Border.all(color: Colors.grey),
+                border: Border.all(color: Colors.red[700]!, width: 2),
                 onClick: handleDisconnect,
-                text: 'Cancel',
-                textColor: null,
+                text: 'agc_reject',
+                textColor: Colors.red[700],
               ),
             ),
           ],
