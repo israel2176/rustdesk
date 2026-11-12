@@ -24,6 +24,10 @@ env:
   VERSION: "1.4.6"
   UPLOAD_ARTIFACT: "true"
   TAG_NAME: "agc-latest"
+  # Company RustDesk server, compiled into the client (src/common.rs).
+  AGC_SERVER: "45.150.108.41"
+  # Content of /opt/rustdesk/id_ed25519.pub on the server, stored as a repo secret.
+  AGC_RS_PUB_KEY: ${{ secrets.AGC_RS_PUB_KEY }}
 
 jobs:
   generate-bridge:
