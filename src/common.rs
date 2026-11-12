@@ -2134,7 +2134,34 @@ fn apply_company_settings() {
         .write()
         .unwrap()
         .insert("disable-settings".to_owned(), "Y".to_owned());
+    // Company server (hbbs + hbbr on the same host), fixed and not editable.
+    // The relay port (21117) is derived from the host automatically.
+    {
+        let mut s = config::OVERWRITE_SETTINGS.write().unwrap();
+        s.insert(
+            keys::OPTION_CUSTOM_RENDEZVOUS_SERVER.to_owned(),
+            COMPANY_SERVER.to_owned(),
+        );
+        s.insert(keys::OPTION_RELAY_SERVER.to_owned(), COMPANY_SERVER.to_owned());
+        if !COMPANY_PUB_KEY.is_empty() {
+            s.insert(keys::OPTION_KEY.to_owned(), COMPANY_PUB_KEY.to_owned());
+        }
+    }
 }
+
+/// Company build: address of the company RustDesk server (hbbs/hbbr).
+/// Can be overridden at build time with the AGC_SERVER environment variable.
+pub const COMPANY_SERVER: &str = match option_env!("AGC_SERVER") {
+    Some(s) if !s.is_empty() => s,
+    _ => "45.150.108.41",
+};
+
+/// Company build: public key of the server (content of id_ed25519.pub),
+/// injected at build time from the AGC_RS_PUB_KEY environment variable (GitHub secret).
+pub const COMPANY_PUB_KEY: &str = match option_env!("AGC_RS_PUB_KEY") {
+    Some(s) => s,
+    None => "",
+};
 
 pub fn load_custom_client() {
     apply_company_settings();
