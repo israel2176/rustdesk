@@ -769,5 +769,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("agc_request_warning", ""),
         ("agc_accept", ""),
         ("agc_reject", ""),
+        ("agc_web_control", ""),
+        ("agc_download_latest", ""),
     ].iter().cloned().collect();
 }
