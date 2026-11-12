@@ -299,5 +299,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("agc_request_warning", "Approve only if you know who is asking to connect and you are talking with them now."),
         ("agc_accept", "Approve"),
         ("agc_reject", "Reject"),
+        ("agc_web_control", "Control from the website (no install)"),
+        ("agc_download_latest", "Download the latest version"),
     ].iter().cloned().collect();
 }
