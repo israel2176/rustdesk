@@ -8,6 +8,7 @@ import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/connection_page.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 
 /// Use the minimal home screen instead of the full RustDesk one.
@@ -22,6 +23,41 @@ const Color _kLightBlue = Color(0xFF47ADE2);
 const Color _kMuted = Color(0xFF3A4466);
 const Color _kStripBg = Color(0xFFF2F7FC);
 const Color _kStripBorder = Color(0xFFDCE6F2);
+
+/// Download page of the latest Remote-AGC build.
+const String kAgcDownloadUrl =
+    'https://github.com/israel2176/rustdesk/releases/tag/agc-latest';
+
+/// Web client: control a computer from the browser, without installing.
+const String kAgcWebUrl = 'https://remote.israelcodes.ovh/';
+
+Widget _agcLink(String text, String url, IconData icon, Color color) {
+  return InkWell(
+    onTap: () => launchUrl(Uri.parse(url)),
+    borderRadius: BorderRadius.circular(6),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 13,
+                color: color,
+                decoration: TextDecoration.underline,
+                decorationColor: color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
 Size getAgcWindowSize() {
   final magicWidth = isWindows ? 11.0 : 2.0;
@@ -147,6 +183,9 @@ class _AgcHomePageState extends State<AgcHomePage>
             style: const TextStyle(fontSize: 15, color: _kMuted),
           ),
           const Spacer(),
+          _agcLink(translate('agc_download_latest'), kAgcDownloadUrl,
+              Icons.download_rounded, _kBlue),
+          const SizedBox(height: 4),
           // Ready / connecting / red error (no internet, HTTP code, ...).
           const OnlineStatusWidget(),
         ],
@@ -264,6 +303,11 @@ class _AgcHomePageState extends State<AgcHomePage>
             style: const TextStyle(
                 fontSize: 13, color: Color(0xFFC9D6EE), height: 1.5),
           ),
+          const Spacer(),
+          const Divider(color: Color(0x33FFFFFF), height: 1),
+          const SizedBox(height: 10),
+          _agcLink(translate('agc_web_control'), kAgcWebUrl,
+              Icons.language_rounded, _kLightBlue),
         ],
       ),
     );
