@@ -769,5 +769,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("agc_request_warning", "אשרו רק אם אתם מכירים את מי שמבקש להתחבר ומדברים איתו כעת."),
         ("agc_accept", "אשר"),
         ("agc_reject", "דחה"),
+        ("agc_web_control", "שליטה דרך האתר (בלי התקנה)"),
+        ("agc_download_latest", "הורדת הגרסה החדשה"),
     ].iter().cloned().collect();
 }
